@@ -96,5 +96,8 @@
     "rimraf": "^2.6.2",
     "shell-quote": "^1.6.1",
     "strip-ansi": "^5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
