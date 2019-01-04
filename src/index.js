@@ -340,6 +340,7 @@ function createConfig(options, entry, format, writeMeta) {
 							tsconfigOverride: {
 								compilerOptions: {
 									target: 'esnext',
+									paths: {},
 								},
 							},
 						}),
