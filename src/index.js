@@ -342,6 +342,7 @@ function createConfig(options, entry, format, writeMeta) {
 									target: 'esnext',
 									paths: {},
 								},
+								exclude: ['__stories__', '__tests__'],
 							},
 						}),
 					!useTypescript && flow({ all: true, pretty: true }),
