@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { map, series } from 'asyncro';
 import glob from 'tiny-glob/sync';
 import { rollup, watch } from 'rollup';
+import babel from 'rollup-plugin-babel';
 import commonjs from 'rollup-plugin-commonjs';
 import nodeResolve from 'rollup-plugin-node-resolve';
 import { terser } from 'rollup-plugin-terser';
@@ -13,7 +14,6 @@ import prettyBytes from 'pretty-bytes';
 import shebangPlugin from 'rollup-plugin-preserve-shebang';
 import typescript from 'rollup-plugin-typescript2';
 import json from 'rollup-plugin-json';
-import flow from './lib/flow-plugin';
 import logError from './log-error';
 import { readFile, isDir, isFile, stdout, stderr } from './utils';
 import camelCase from 'camelcase';
@@ -345,7 +345,17 @@ function createConfig(options, entry, format, writeMeta) {
 								exclude: ['__stories__', '__tests__'],
 							},
 						}),
-					!useTypescript && flow({ all: true, pretty: true }),
+					babel({
+						babelrc: false,
+						extensions: ['.ts', '.tsx', '.js', '.jsx', '.es6', '.es', '.mjs'],
+						exclude: 'node_modules/**',
+						presets: [
+							require.resolve('babel-preset-react-app/prod', {
+								flow: false,
+								typescript: false,
+							}),
+						],
+					}),
 					options.compress !== false && [
 						terser({
 							sourcemap: true,
