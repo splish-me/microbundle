@@ -347,13 +347,27 @@ function createConfig(options, entry, format, writeMeta) {
 						}),
 					babel({
 						babelrc: false,
+						runtimeHelpers: true,
 						extensions: ['.ts', '.tsx', '.js', '.jsx', '.es6', '.es', '.mjs'],
 						exclude: 'node_modules/**',
 						presets: [
-							require.resolve('babel-preset-react-app/prod', {
-								flow: false,
-								typescript: false,
-							}),
+							require.resolve('@babel/preset-env'),
+							// '@babel/preset-typescript',
+							require.resolve('@babel/preset-react'),
+						],
+						plugins: [
+							require.resolve('@babel/plugin-transform-runtime'),
+							require.resolve('@babel/plugin-proposal-function-sent'),
+							require.resolve('@babel/plugin-proposal-export-namespace-from'),
+							require.resolve('@babel/plugin-proposal-numeric-separator'),
+							require.resolve('@babel/plugin-proposal-throw-expressions'),
+							require.resolve('@babel/plugin-syntax-dynamic-import'),
+							require.resolve('@babel/plugin-syntax-import-meta'),
+							[
+								require.resolve('@babel/plugin-proposal-class-properties'),
+								{ loose: false },
+							],
+							require.resolve('@babel/plugin-proposal-json-strings'),
 						],
 					}),
 					options.compress !== false && [
