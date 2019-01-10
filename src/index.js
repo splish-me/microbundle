@@ -3,11 +3,15 @@ import { resolve, relative, dirname, basename, extname } from 'path';
 import chalk from 'chalk';
 import { map, series } from 'asyncro';
 import glob from 'tiny-glob/sync';
+import autoprefixer from 'autoprefixer';
+import cssnano from 'cssnano';
 import { rollup, watch } from 'rollup';
-import babel from 'rollup-plugin-babel';
 import commonjs from 'rollup-plugin-commonjs';
+import babel from 'rollup-plugin-babel';
 import nodeResolve from 'rollup-plugin-node-resolve';
+import buble from 'rollup-plugin-buble';
 import { terser } from 'rollup-plugin-terser';
+import postcss from 'rollup-plugin-postcss';
 import gzipSize from 'gzip-size';
 import brotliSize from 'brotli-size';
 import prettyBytes from 'pretty-bytes';
@@ -316,6 +320,18 @@ function createConfig(options, entry, format, writeMeta) {
 			},
 			plugins: []
 				.concat(
+					postcss({
+						plugins: [
+							autoprefixer(),
+							options.compress !== false &&
+								cssnano({
+									preset: 'default',
+								}),
+						].filter(Boolean),
+						// only write out CSS for the first bundle (avoids pointless extra files):
+						inject: false,
+						extract: !!writeMeta,
+					}),
 					nodeResolve({
 						module: true,
 						jsnext: true,
@@ -346,30 +362,66 @@ function createConfig(options, entry, format, writeMeta) {
 							},
 						}),
 					babel({
+						// We mainly use bublé to transpile JS and only use babel to
+						// transpile down `async/await`. To prevent conflicts with user
+						// supplied configurations we set this option to false. Note
+						// that we never supported using custom babel configs anyway.
 						babelrc: false,
-						runtimeHelpers: true,
 						extensions: ['.ts', '.tsx', '.js', '.jsx', '.es6', '.es', '.mjs'],
 						exclude: 'node_modules/**',
-						presets: [
-							require.resolve('@babel/preset-env'),
-							// '@babel/preset-typescript',
-							require.resolve('@babel/preset-react'),
-						],
 						plugins: [
-							require.resolve('@babel/plugin-transform-runtime'),
-							require.resolve('@babel/plugin-proposal-function-sent'),
-							require.resolve('@babel/plugin-proposal-export-namespace-from'),
-							require.resolve('@babel/plugin-proposal-numeric-separator'),
-							require.resolve('@babel/plugin-proposal-throw-expressions'),
-							require.resolve('@babel/plugin-syntax-dynamic-import'),
-							require.resolve('@babel/plugin-syntax-import-meta'),
+							require.resolve('@babel/plugin-syntax-jsx'),
+							[
+								require.resolve('babel-plugin-transform-async-to-promises'),
+								{ inlineHelpers: true, externalHelpers: true },
+							],
 							[
 								require.resolve('@babel/plugin-proposal-class-properties'),
-								{ loose: false },
+								{ loose: true },
 							],
-							require.resolve('@babel/plugin-proposal-json-strings'),
 						],
 					}),
+					{
+						// Custom plugin that removes shebang from code because newer
+						// versions of bublé bundle their own private version of `acorn`
+						// and I don't know a way to patch in the option `allowHashBang`
+						// to acorn.
+						// See: https://github.com/Rich-Harris/buble/pull/165
+						transform(code) {
+							let reg = /^#!(.*)/;
+							let match = code.match(reg);
+
+							if (match !== null) {
+								shebang = '#!' + match[0];
+							}
+
+							code = code.replace(reg, '');
+
+							return { code, map: null };
+						},
+					},
+					buble({
+						exclude: 'node_modules/**',
+						jsx: options.jsx || 'h',
+						objectAssign: options.assign || 'Object.assign',
+						transforms: {
+							dangerousForOf: true,
+							dangerousTaggedTemplateString: true,
+						},
+					}), // We should upstream this to rollup
+					// format==='cjs' && replace({
+					// 	[`module.exports = ${rollupName};`]: '',
+					// 	[`var ${rollupName} =`]: 'module.exports ='
+					// }),
+					// This works for the general case, but could cause nasty scope bugs.
+					// format==='umd' && replace({
+					// 	[`return ${rollupName};`]: '',
+					// 	[`var ${rollupName} =`]: 'return'
+					// }),
+					// format==='es' && replace({
+					// 	[`export default ${rollupName};`]: '',
+					// 	[`var ${rollupName} =`]: 'export default'
+					// }),
 					options.compress !== false && [
 						terser({
 							sourcemap: true,
@@ -395,8 +447,7 @@ function createConfig(options, entry, format, writeMeta) {
 						}),
 						mangleOptions && {
 							// before hook
-							options: loadNameCache,
-							// after hook
+							options: loadNameCache, // after hook
 							onwrite() {
 								if (writeMeta && nameCache) {
 									fs.writeFile(
@@ -413,13 +464,10 @@ function createConfig(options, entry, format, writeMeta) {
 							config._code = code;
 						},
 					},
-					shebangPlugin({
-						shebang,
-					}),
+					shebangPlugin({ shebang }),
 				)
 				.filter(Boolean),
 		},
-
 		outputOptions: {
 			paths: aliases,
 			globals,
@@ -428,9 +476,7 @@ function createConfig(options, entry, format, writeMeta) {
 			freeze: false,
 			esModule: false,
 			sourcemap: options.sourcemap,
-			treeshake: {
-				propertyReadSideEffects: false,
-			},
+			treeshake: { propertyReadSideEffects: false },
 			format,
 			name: options.name,
 			file: resolve(
